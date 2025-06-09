@@ -1,36 +1,38 @@
 # lib/iso/data/importer/models/ics_entry.rb
-require 'lutaml/model'
+# frozen_string_literal: true
+
+require "lutaml/model"
 
 module Iso
   module Data
     module Importer
       module Models
-        # Represents an International Classification for Standards (ICS) entry
         class IcsEntry < Lutaml::Model::Serializable
-          attribute :identifier, Lutaml::Model::Type::String # e.g., "03.140"
-          attribute :parent, Lutaml::Model::Type::String, optional: true # e.g., "03"
-          attribute :title_en, Lutaml::Model::Type::String
-          attribute :title_fr, Lutaml::Model::Type::String, optional: true
-          attribute :scope_en, Lutaml::Model::Type::String, optional: true
-          attribute :scope_fr, Lutaml::Model::Type::String, optional: true
+          attribute :identifier, :string
+          attribute :parent, :string
+          attribute :title_en, :string
+          attribute :title_fr, :string
+          attribute :scope_en, :string
+          attribute :scope_fr, :string
 
-          # 'references' seems to be a more complex nested structure.
-          # For now, storing as an array of hashes. We might need a dedicated Reference model
-          # if lutaml-model supports it easily or if we need more structured access.
-          attribute :references, Lutaml::Model::Type::Array.of(Lutaml::Model::Type::Hash), optional: true
-          # Example of a reference hash: { "identifier" => "01.080.10", "note" => "Information technology..." }
+          def initialize(attributes = {})
+            super()
 
-          # Method to convert to a hash suitable for YAML export
-          def to_yaml_hash
-            {
-              "identifier" => identifier,
-              "parent" => parent,
-              "title_en" => title_en,
-              "title_fr" => title_fr,
-              "scope_en" => scope_en,
-              "scope_fr" => scope_fr,
-              "references" => references
-            }.compact # Remove nil values for cleaner YAML
+            self.identifier = attributes['identifier']
+
+            # Handle parent: store as nil if input is empty string, otherwise store value
+            parent_val = attributes['parent']
+            self.parent = (parent_val.nil? || parent_val.empty?) ? nil : parent_val
+
+            self.title_en = attributes['titleEn']
+            self.title_fr = attributes['titleFr']
+
+            # Handle optional scope fields: store as nil if input is empty string or nil
+            scope_en_val = attributes['scopeEn']
+            self.scope_en = (scope_en_val.nil? || scope_en_val.empty?) ? nil : scope_en_val
+
+            scope_fr_val = attributes['scopeFr']
+            self.scope_fr = (scope_fr_val.nil? || scope_fr_val.empty?) ? nil : scope_fr_val
           end
         end
       end

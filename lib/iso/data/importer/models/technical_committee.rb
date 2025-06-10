@@ -1,5 +1,5 @@
 # lib/iso/data/importer/models/technical_committee.rb
-# (Ensure you have this file name if the class is TechnicalComittee,
+# (Ensure you have this file name if the class is TechnicalCommittee,
 # or rename class to TechnicalCommittee if file is technical_committee.rb)
 
 # frozen_string_literal: true
@@ -41,7 +41,7 @@ module Iso
 
         # Represents a single ISO Technical Committee or Sub-Committee
         # Consider renaming to TechnicalCommittee for Ruby convention
-        class TechnicalComittee < Lutaml::Model::Serializable
+        class TechnicalCommittee < Lutaml::Model::Serializable
           attribute :id, :integer
           attribute :reference, :string
           attribute :status, :string # Consider adding `values: %w[Active Suspended]` if validation desired

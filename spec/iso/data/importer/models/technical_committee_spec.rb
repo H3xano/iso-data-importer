@@ -4,7 +4,7 @@ require 'json'
 require 'date'
 require 'iso/data/importer/models/technical_committee'
 
-RSpec.describe Iso::Data::Importer::Models::TechnicalComittee do # Or TechnicalCommittee
+RSpec.describe Iso::Data::Importer::Models::TechnicalCommittee do # Or TechnicalCommittee
   let(:fixture_path) { File.join(__dir__, '../../../../fixtures/iso_technical_committees.jsonl') }
   let!(:all_fixture_data) { File.readlines(fixture_path).map { |line| JSON.parse(line) } } # Memoize
 

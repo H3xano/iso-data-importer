@@ -9,7 +9,7 @@ module Iso
     module Importer
       module Models
         class TechnicalCommitteeCollection < Lutaml::Model::Serializable
-          attribute :technical_committees, TechnicalCommittee, collection: true, xml_name_override: "technicalCommittee"
+          attribute :technical_committees, TechnicalCommittee, collection: true
 
           key_value do
             map "technical_committees", to: :technical_committees

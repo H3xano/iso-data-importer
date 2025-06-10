@@ -9,7 +9,7 @@ module Iso
     module Importer
       module Models
         class DeliverableCollection < Lutaml::Model::Serializable
-          attribute :deliverables, Deliverable, collection: true, xml_name_override: "deliverable" # if XML root is <deliverables><deliverable>...</deliverable>...
+          attribute :deliverables, Deliverable, collection: true
 
           # For hash deserialization (e.g., if you were to load a collection from a single JSON/YAML)
           # and for consistent hash representation via .to_h

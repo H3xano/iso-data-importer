@@ -9,7 +9,7 @@ module Iso
     module Importer
       module Models
         class IcsEntryCollection < Lutaml::Model::Serializable
-          attribute :ics_entries, IcsEntry, collection: true, xml_name_override: "icsEntry"
+          attribute :ics_entries, IcsEntry, collection: true
 
           key_value do
             map "ics_entries", to: :ics_entries

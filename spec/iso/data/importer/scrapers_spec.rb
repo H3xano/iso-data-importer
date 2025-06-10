@@ -3,19 +3,22 @@ require 'spec_helper'
 
 # Require the main Scrapers module file
 require 'iso/data/importer/scrapers'
-# Require the model classes because the Scrapers module methods are typed to return them
-require 'iso/data/importer/models/deliverable'
-require 'iso/data/importer/models/technical_committee'
-require 'iso/data/importer/models/ics_entry'
 
-# We also need to require the individual scraper classes because we will be
-# creating instances of them to stub their `scrape` method.
+# Require all model classes (items and collections)
+require 'iso/data/importer/models/deliverable'
+require 'iso/data/importer/models/deliverable_collection'
+require 'iso/data/importer/models/technical_committee'
+require 'iso/data/importer/models/technical_committee_collection'
+require 'iso/data/importer/models/ics_entry'
+require 'iso/data/importer/models/ics_entry_collection'
+
+# Require individual scraper classes for stubbing .new
 require 'iso/data/importer/scrapers/deliverables_scraper'
 require 'iso/data/importer/scrapers/technical_committees_scraper'
 require 'iso/data/importer/scrapers/ics_scraper'
 
 RSpec.describe Iso::Data::Importer::Scrapers do
-  # Create mock model instances for testing
+  # Create mock item model instances for testing
   let(:mock_deliverable1) { instance_double(Iso::Data::Importer::Models::Deliverable, id: 1) }
   let(:mock_deliverable2) { instance_double(Iso::Data::Importer::Models::Deliverable, id: 2) }
   let(:mock_tc1) { instance_double(Iso::Data::Importer::Models::TechnicalCommittee, id: 101) }
@@ -34,43 +37,49 @@ RSpec.describe Iso::Data::Importer::Scrapers do
     allow(Iso::Data::Importer::Scrapers::TechnicalCommitteesScraper).to receive(:new).and_return(tc_scraper_instance)
     allow(Iso::Data::Importer::Scrapers::IcsScraper).to receive(:new).and_return(ics_scraper_instance)
 
-    # Default stub for scrape methods to yield nothing and return 0
-    # This can be overridden in specific contexts if needed.
-    allow(deliverables_scraper_instance).to receive(:scrape).and_return(0) # By default, yield nothing
+    # Default stub for scrape methods: yield nothing, return count 0.
+    # Specific tests will override this to simulate yielding data.
+    allow(deliverables_scraper_instance).to receive(:scrape).and_return(0)
     allow(tc_scraper_instance).to receive(:scrape).and_return(0)
     allow(ics_scraper_instance).to receive(:scrape).and_return(0)
   end
 
   describe '.fetch_deliverables' do
-    it 'instantiates DeliverablesScraper and calls its scrape method' do
-      # Expect scrape to be called and allow it to yield to collect items
-      expect(deliverables_scraper_instance).to receive(:scrape) do |&block|
-        block.call(mock_deliverable1)
-        block.call(mock_deliverable2)
-        2 # Return count
+    it 'instantiates DeliverablesScraper, calls its scrape method, and returns a DeliverableCollection' do
+      # Configure the mock scraper to yield our mock deliverables
+      expect(deliverables_scraper_instance).to receive(:scrape) do |&block_param|
+        block_param.call(mock_deliverable1)
+        block_param.call(mock_deliverable2)
+        2 # Simulate scrape returning the count of processed items
       end.with(force_download: false) # Check default argument
 
-      result = described_class.fetch_deliverables # force_download defaults to false
-      expect(result).to contain_exactly(mock_deliverable1, mock_deliverable2)
+      collection = described_class.fetch_deliverables # force_download defaults to false
+
+      expect(collection).to be_an_instance_of(Iso::Data::Importer::Models::DeliverableCollection)
+      expect(collection.size).to eq(2)
+      # Assuming collection delegates `map` or we access its internal array if it has one named `deliverables`
+      expect(collection.map(&:itself)).to contain_exactly(mock_deliverable1, mock_deliverable2)
     end
 
     it 'passes force_download: true to the scraper' do
       expect(deliverables_scraper_instance).to receive(:scrape)
-        .with(force_download: true) # Ensure this argument is passed
-        .and_return(0)
+        .with(force_download: true)
+        .and_return(0) # Return value for scrape method
       described_class.fetch_deliverables(force_download: true)
     end
   end
 
   describe '.fetch_technical_committees' do
-    it 'instantiates TechnicalCommitteesScraper and calls its scrape method' do
-      expect(tc_scraper_instance).to receive(:scrape) do |&block|
-        block.call(mock_tc1)
-        1 # Return count
+    it 'instantiates TechnicalCommitteesScraper, calls its scrape method, and returns a TechnicalCommitteeCollection' do
+      expect(tc_scraper_instance).to receive(:scrape) do |&block_param|
+        block_param.call(mock_tc1)
+        1
       end.with(force_download: false)
 
-      result = described_class.fetch_technical_committees
-      expect(result).to contain_exactly(mock_tc1)
+      collection = described_class.fetch_technical_committees
+      expect(collection).to be_an_instance_of(Iso::Data::Importer::Models::TechnicalCommitteeCollection)
+      expect(collection.size).to eq(1)
+      expect(collection.map(&:itself)).to contain_exactly(mock_tc1)
     end
 
     it 'passes force_download: true to the scraper' do
@@ -82,15 +91,17 @@ RSpec.describe Iso::Data::Importer::Scrapers do
   end
 
   describe '.fetch_ics_entries' do
-    it 'instantiates IcsScraper and calls its scrape method' do
-      expect(ics_scraper_instance).to receive(:scrape) do |&block|
-        block.call(mock_ics1)
-        block.call(mock_ics2)
+    it 'instantiates IcsScraper, calls its scrape method, and returns an IcsEntryCollection' do
+      expect(ics_scraper_instance).to receive(:scrape) do |&block_param|
+        block_param.call(mock_ics1)
+        block_param.call(mock_ics2)
         2
-      end.with(force_download: false) # Check default, matches method signature in Scrapers module
+      end.with(force_download: false)
 
-      result = described_class.fetch_ics_entries
-      expect(result).to contain_exactly(mock_ics1, mock_ics2)
+      collection = described_class.fetch_ics_entries
+      expect(collection).to be_an_instance_of(Iso::Data::Importer::Models::IcsEntryCollection)
+      expect(collection.size).to eq(2)
+      expect(collection.map(&:itself)).to contain_exactly(mock_ics1, mock_ics2)
     end
 
     it 'passes force_download: true to the scraper' do
@@ -102,46 +113,49 @@ RSpec.describe Iso::Data::Importer::Scrapers do
   end
 
   describe '.fetch_all' do
+    # Mock data for the collections returned by individual fetch methods
+    let(:mock_deliverables_collection) { Iso::Data::Importer::Models::DeliverableCollection.new([mock_deliverable1]) }
+    let(:mock_tc_collection) { Iso::Data::Importer::Models::TechnicalCommitteeCollection.new([mock_tc1, mock_tc2]) }
+    let(:mock_ics_collection) { Iso::Data::Importer::Models::IcsEntryCollection.new([mock_ics1]) }
+
     before do
-      # Setup individual scrapers to yield specific items for .fetch_all
-      allow(deliverables_scraper_instance).to receive(:scrape) do |&block|
-        block.call(mock_deliverable1); 1
-      end
-      allow(tc_scraper_instance).to receive(:scrape) do |&block|
-        block.call(mock_tc1); block.call(mock_tc2); 2
-      end
-      allow(ics_scraper_instance).to receive(:scrape) do |&block|
-        block.call(mock_ics1); 1
-      end
+      # Stub the module's own fetch methods to return our mock collections
+      allow(described_class).to receive(:fetch_deliverables).and_return(mock_deliverables_collection)
+      allow(described_class).to receive(:fetch_technical_committees).and_return(mock_tc_collection)
+      allow(described_class).to receive(:fetch_ics_entries).and_return(mock_ics_collection)
     end
 
     it 'calls fetch methods for deliverables, technical_committees, and ics_entries' do
-      # We can spy on the module's own methods
-      expect(described_class).to receive(:fetch_deliverables).with(force_download: false).and_return([mock_deliverable1])
-      expect(described_class).to receive(:fetch_technical_committees).with(force_download: false).and_return([mock_tc1, mock_tc2])
-      expect(described_class).to receive(:fetch_ics_entries).with(force_download: false).and_return([mock_ics1])
+      # Expectations are already set by the `allow(...).to receive(...)` in the before block.
+      # We just need to call the method and verify the stubs were hit.
+      # Or, more explicitly:
+      expect(described_class).to receive(:fetch_deliverables).with(force_download: false).and_return(mock_deliverables_collection)
+      expect(described_class).to receive(:fetch_technical_committees).with(force_download: false).and_return(mock_tc_collection)
+      expect(described_class).to receive(:fetch_ics_entries).with(force_download: false).and_return(mock_ics_collection)
 
       described_class.fetch_all # force_download defaults to false
     end
 
     it 'passes force_download: true to underlying fetch methods' do
-      expect(described_class).to receive(:fetch_deliverables).with(force_download: true).and_return([])
-      expect(described_class).to receive(:fetch_technical_committees).with(force_download: true).and_return([])
-      expect(described_class).to receive(:fetch_ics_entries).with(force_download: true).and_return([])
+      expect(described_class).to receive(:fetch_deliverables).with(force_download: true).and_return(mock_deliverables_collection)
+      expect(described_class).to receive(:fetch_technical_committees).with(force_download: true).and_return(mock_tc_collection)
+      expect(described_class).to receive(:fetch_ics_entries).with(force_download: true).and_return(mock_ics_collection)
 
       described_class.fetch_all(force_download: true)
     end
 
-    it 'returns a hash containing arrays of all fetched items' do
-      # Let the underlying methods run with the stubs defined in the before block
-      # for this describe '.fetch_all' context.
+    it 'returns a hash containing all fetched collection objects' do
+      # Let the stubs from the `before` block provide the return values
       result = described_class.fetch_all
 
       expect(result).to be_a(Hash)
       expect(result.keys).to contain_exactly(:deliverables, :technical_committees, :ics_entries)
-      expect(result[:deliverables]).to contain_exactly(mock_deliverable1)
-      expect(result[:technical_committees]).to contain_exactly(mock_tc1, mock_tc2)
-      expect(result[:ics_entries]).to contain_exactly(mock_ics1)
+      expect(result[:deliverables]).to eq(mock_deliverables_collection)
+      expect(result[:deliverables].size).to eq(1) # Verify content via collection
+      expect(result[:technical_committees]).to eq(mock_tc_collection)
+      expect(result[:technical_committees].size).to eq(2)
+      expect(result[:ics_entries]).to eq(mock_ics_collection)
+      expect(result[:ics_entries].size).to eq(1)
     end
   end
 end

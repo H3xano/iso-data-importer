@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require 'lutaml/model'
+require 'forwardable'
 require_relative 'technical_committee'
 
 module Iso

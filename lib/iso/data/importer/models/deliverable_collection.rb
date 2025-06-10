@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require 'lutaml/model'
+require 'forwardable'
 require_relative 'deliverable' # Assuming deliverable.rb is in the same directory
 
 module Iso

@@ -1,58 +1,99 @@
 # lib/iso/data/importer/scrapers/base_scraper.rb
 # frozen_string_literal: true
 
-require 'faraday'
-require 'faraday/follow_redirects' # Ensure this is in your gemspec if used
-require 'fileutils' # For mkdir_p
+require 'httparty'
+require 'fileutils'
+require 'json'
+require 'csv'
 
 module Iso
   module Data
     module Importer
       module Scrapers
-        # Base class for fetching and processing data files.
         class BaseScraper
-          # Initializes the scraper, ensuring the temporary directory exists.
+          TMP_DIR = "tmp/iso_data_cache"
+
           def initialize
-            FileUtils.mkdir_p("tmp")
+            FileUtils.mkdir_p(TMP_DIR) unless Dir.exist?(TMP_DIR)
           end
 
-          # Fetches a file from a given URL and saves it to a specified output path.
-          # @param url [String] The URL to fetch the file from.
-          # @param output_path [String] The path to save the downloaded file.
-          # @raise [Iso::Data::Importer::DownloadError] if the download fails.
-          def fetch_file(url, output_path)
-            log "Downloading from #{url} to #{output_path}..."
-            conn = Faraday.new do |faraday|
-              faraday.response :follow_redirects # Handle redirects
-              faraday.adapter Faraday.default_adapter # Or :net_http or other
+          def download_file(url, filename, force_download: false)
+            local_path = File.join(TMP_DIR, filename)
+
+            if !force_download && File.exist?(local_path) && File.size(local_path) > 0
+              log "Using cached file: #{local_path}", 0, :info
+              return local_path
             end
 
-            response = conn.get(url)
-
-            if response.success?
-              File.open(output_path, 'wb') do |file|
-                file.write(response.body)
+            log "Downloading #{filename} from #{url}...", 0, :info
+            begin
+              File.open(local_path, 'wb') do |file|
+                response = HTTParty.get(url, stream_body: true, timeout: 180) do |chunk|
+                  file.write chunk
+                end
+                unless response.success?
+                  FileUtils.rm_f(local_path)
+                  log "Error downloading #{filename}: #{response.code} - #{response.message}", 1, :error
+                  log "Response body snippet: #{response.body[0..500]}...", 2, :error if response.body
+                  return nil
+                end
               end
-              log "Successfully saved to #{output_path}"
-            else
-              error_message = "Failed to download #{url}. Status: #{response.status}, Body: #{response.body[0..500]}"
-              log error_message, 1, :error
-              raise Iso::Data::Importer::DownloadError, error_message
+              log "Successfully downloaded to #{local_path}", 0, :info
+              local_path
+            rescue HTTParty::Error, SocketError, Timeout::Error, StandardError => e
+              FileUtils.rm_f(local_path)
+              log "Exception downloading #{filename}: #{e.class} - #{e.message}", 1, :error
+              nil
             end
-          rescue Faraday::ConnectionFailed, Faraday::TimeoutError => e
-            error_message = "Network error while downloading #{url}: #{e.message}"
-            log error_message, 1, :error
-            raise Iso::Data::Importer::DownloadError, error_message
           end
 
-          # Log a message with indentation and optional type (info, error).
-          # @param message [String] The message to log.
-          # @param level [Integer] The indentation level (default: 0).
-          # @param type [Symbol] :info or :error (default: :info).
-          def log(message, level = 0, type = :info)
-            indent = "  " * level
-            prefix = type == :error ? "[ERROR] " : ""
-            puts "#{indent}#{prefix}#{message}"
+          def each_jsonl_item(file_path)
+            return 0 unless file_path && File.exist?(file_path)
+            count = 0
+            File.foreach(file_path).with_index do |line, idx|
+              begin
+                yield JSON.parse(line)
+                count += 1
+              rescue JSON::ParserError => e
+                log "Skipping invalid JSON line #{idx + 1} in #{File.basename(file_path)}: #{line.strip}", 1, :warn
+                log "Error: #{e.message}", 2, :warn # This e.message contains newline
+              end
+            end
+            # Explicitly pass all arguments to log
+            log "Parsed #{count} items from #{File.basename(file_path)}", 0, :info
+            count
+          end
+
+          def each_csv_row(file_path, clean_headers: true, &block)
+            # ... (CSV parsing logic as before) ...
+            # Ensure any log calls here are also explicit with all 3 args or match defaults
+            return 0 unless file_path && File.exist?(file_path)
+            file_content = File.read(file_path, encoding: 'UTF-8').sub("\xEF\xBB\xBF", '')
+            count = 0
+            begin
+              CSV.parse(file_content, headers: true, skip_blanks: true) do |row|
+                row_hash = row.to_h
+                # ... header cleaning ...
+                yield row_hash
+                count += 1
+              end
+              log "Processed #{count} rows from #{File.basename(file_path)}", 0, :info
+            rescue CSV::MalformedCSVError => e
+              log "Malformed CSV error in #{File.basename(file_path)} near line #{e.line_number}: #{e.message}", 1, :error
+            rescue StandardError => e
+              log "Error processing CSV #{File.basename(file_path)}: #{e.message}", 1, :error
+            end
+            count
+          end
+
+          def log(message, indent_level = 0, severity = :info)
+            indent = "  " * indent_level
+            prefix = case severity
+                     when :error then "ERROR: "
+                     when :warn  then "WARN:  "
+                     else            "INFO:  "
+                     end
+            puts "#{Time.now.strftime('%Y-%m-%d %H:%M:%S')} #{prefix}#{indent}#{message}"
           end
         end
       end

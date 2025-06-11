@@ -28,25 +28,11 @@ Gem::Specification.new do |spec|
 
   # Runtime dependencies:
   # For command-line interface (like ietf-data-importer uses Thor)
-  spec.add_dependency "thor", "~> 1.0" # If you plan a CLI similar to ietf-data-importer's `fetch` command
+  spec.add_dependency "thor" # If you plan a CLI similar to ietf-data-importer's `fetch` command
 
   # For HTTP requests
-  spec.add_dependency "faraday", "~> 2.7" # Or your preferred HTTP client, check latest stable version
-  spec.add_dependency "faraday-follow_redirects", "~> 0.3.0" # If download URLs might have redirects
-
-  # For parsing JSONLines (Ruby's built-in 'json' is usually sufficient,
-  # but if you need a dedicated JSONL parser for streaming large files, consider it)
-  # Built-in 'json' is part of Ruby standard library.
-
-  # For parsing CSV (for ICS data)
-  # Built-in 'csv' is part of Ruby standard library.
-
-  # For YAML generation
-  # Built-in 'psych' (which backs 'yaml') is part of Ruby standard library.
-  # spec.add_dependency "yaml" # Not strictly necessary if relying on built-in Psych
-
-  # If you decide to use lutaml-model based on ietf-data-importer pattern
-  # spec.add_dependency "lutaml-model", "~> 0.7" # Check latest version
+  spec.add_dependency "httparty"
+  spec.add_dependency "lutaml-model"
 
   # Files to include in the gem package
   spec.files = Dir.chdir(File.expand_path(__dir__)) do

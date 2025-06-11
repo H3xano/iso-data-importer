@@ -46,8 +46,8 @@ Gem::Specification.new do |spec|
   spec.bindir        = "exe" # Changed from 'exe' to 'bin' to match Bundler's default gem skeleton
                                # Or change your directory from bin/ to exe/ to match ietf-data-importer
 
-  # If you create an executable, e.g., bin/iso-data-importer
-  # Bundler's default (bin/) is fine, or change to exe/ to match ietf-data-importer
+  spec.executables   = ["iso-data-importer"] # Matches the filename in spec.bindir
+                               # Bundler's default (bin/) is fine, or change to exe/ to match ietf-data-importer
   spec.executables   = spec.files.grep(%r{\A(?:bin|exe)/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 end

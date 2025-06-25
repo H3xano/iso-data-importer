@@ -1,87 +1,62 @@
-name: Daily ISO Data Update & Release
+name: Daily ISO Data Update
 
 on:
   schedule:
-    # Runs daily at 02:00 UTC (adjust as needed)
+    # Runs daily at 02:00 UTC
     - cron: "0 2 * * *"
   workflow_dispatch: # Allows manual triggering
 
 jobs:
-  update_data_and_release:
-    name: Check ISO Data, Update, and Release if Changed
+  update_data:
+    name: Check for New ISO Data and Update
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # To commit, tag, and push
-      # packages: write # If publishing to GitHub Packages in the future
+    # No extra permissions needed, as this job only pushes to the other repo
 
     steps:
-      - name: Checkout repository
+      - name: Checkout iso-data-importer (this repo)
         uses: actions/checkout@v4
         with:
-          # Fetch enough history for version bumping tools if they rely on git tags
-          fetch-depth: 0 # Fetches all history and tags
+          path: importer
+
+      - name: Checkout iso-data-open repository
+        uses: actions/checkout@v4
+        with:
+          # IMPORTANT: For the final PR, change this back to metanorma/iso-data-open
+          repository: metanorma/iso-data-open
+          path: data
+          # The PAT needs write access to the data repository
+          token: ${{ secrets.GH_PAT_ISO_DATA_OPEN }}
 
       - name: Configure Git User
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.1' # Specify your project's Ruby version
+          ruby-version: '3.1'
           bundler-cache: true
+          working-directory: ./importer
 
       - name: Run Rake task to update data
-        id: update_data
+        working-directory: ./importer
         run: |
           echo "Updating ISO data using Rake..."
-          # force_download=true, export_format=yaml (for committed data)
-          bundle exec rake "data:update_all[true,yaml]"
+          OUTPUT_PATH="${{ github.workspace }}/data"
+          bundle exec rake "data:update_all[true,yaml,$OUTPUT_PATH]"
           echo "Data update task finished."
-          # Check if the data directory has changed
-          if git diff --quiet HEAD -- data/; then
-            echo "Data directory has no changes."
-            echo "has_changes=false" >> $GITHUB_OUTPUT
+
+      - name: Commit and Push Data Changes
+        working-directory: ./data
+        run: |
+          # Check for any changes, including new files
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No new data found. No changes to commit."
           else
-            echo "Data directory has changes."
-            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "New data found. Committing changes..."
+            git add .
+            git commit -m "chore: Update ISO open data files"
+            git push
+            echo "Data changes have been pushed."
           fi
-
-      - name: Commit and push data changes
-        if: steps.update_data.outputs.has_changes == 'true'
-        run: |
-          echo "Committing data changes..."
-          git add data/
-          git commit -m "Update ISO open data files - $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
-          echo "Pushing data changes to branch..." # Pushes the data commit
-          git push
-
-      # This part mirrors the IETF example's direct gem release logic
-      # If Metanorma has a reusable workflow for "bump, tag, commit version, publish",
-      # that would be preferred here. For now, following IETF's direct approach:
-      - name: Bump version, Tag, Commit Version, and Push Tags/Commits
-        if: steps.update_data.outputs.has_changes == 'true'
-        # Ensure gem-release is in your Gemfile's development group
-        run: |
-          echo "Data changed, proceeding with version bump and release preparation..."
-          # Bump patch version, create git tag, commit version file, push commit & tag
-          # The `--push` flag for `gem bump` pushes the commit and the tag.
-          # Ensure your GITHUB_TOKEN (automatically provided to actions) has rights
-          # or use a PAT if pushing to protected branches or triggering other workflows.
-          bundle exec gem bump --version patch --tag --commit --push
-          echo "Version bumped, tagged, and pushed."
-
-      - name: Publish to RubyGems.org
-        if: steps.update_data.outputs.has_changes == 'true'
-        env:
-          # This secret must be configured in your GitHub repository settings
-          # Match the secret name used by Metanorma projects, e.g., METANORMA_CI_RUBYGEMS_API_KEY
-          RUBYGEMS_API_KEY: ${{ secrets.METANORMA_CI_RUBYGEMS_API_KEY }}
-        run: |
-          echo "Publishing to RubyGems.org..."
-          # The `gem bump` might have already built the gem if using `gem-release` fully.
-          # If not, or to be sure:
-          gem build *.gemspec
-          gem push *.gem
-          echo "Published to RubyGems.org."
